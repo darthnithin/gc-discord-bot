@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -14,25 +13,18 @@ import (
 	"google.golang.org/api/classroom/v1"
 )
 
-var (
-	Token    string
-	Class_id string
-	err      error
-	srv      *classroom.Service
-)
-
-/* var srv = Class(Class_id) */
+var srv *classroom.Service
 
 func main() {
-	Token, Class_id, err = load_token()
-	log_err("Error Loading Token", err)
-
+	// Load Token
+	Token, Class_id := load_token()
+	// Load Google Classroom Service
 	srv = Class(Class_id)
-	if srv == nil {
-		fmt.Println("niiiil")
-	}
+	// Load DiscordGo Session
 	dg, err := discordgo.New("Bot " + Token)
-	log_err("Error creating Discord Session", err)
+	if err != nil {
+		log.Println("Error Registering discordgo Session. Error: %v", err)
+	}
 	//load classroom stuff
 	/* 	s, err := announce(Class_id, srv)
 	   	log_err("loading classroom...", err)
@@ -44,7 +36,7 @@ func main() {
 	dg.AddHandler(messageCreate)
 	//open the websocket
 	err = dg.Open()
-	log_err("Error opening Discord Session", err)
+
 	fmt.Println("Running . . .")
 	signal_channel := make(chan os.Signal, 1)
 	signal.Notify(signal_channel, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
@@ -73,10 +65,10 @@ func messageCreate(session *discordgo.Session, message *discordgo.MessageCreate)
 	content = content[len(PREFIX):]
 	args := strings.Fields(content)
 	channel, err := session.State.Channel(message.ChannelID)
-	log_err("Could not find channel", err)
+	log_err("Could not find channel", err, false)
 	// find the guild (server) of the message
 	_, err = session.State.Guild(channel.GuildID)
-	log_err("Could not find guild", err)
+	log_err("Could not find guild", err, false)
 	if args[0] == "list" {
 		if args[1] == "classes" || args[1] == "courses" {
 			CourseList := list_courses(srv, 10)
@@ -90,7 +82,7 @@ func messageCreate(session *discordgo.Session, message *discordgo.MessageCreate)
 				//log_err("err marrshalling", err)
 			}
 			_, err := session.ChannelMessageSendReply(channel.ID, ReplyText, message.Reference())
-			log_err("Err Replying", err)
+			log_err("Err Replying", err, false)
 
 		}
 		if args[1] == "announcements" {
@@ -105,35 +97,25 @@ func messageCreate(session *discordgo.Session, message *discordgo.MessageCreate)
 	}
 	fmt.Println(args)
 	// find the channel of the message
-
-	// send a message
-	log_err("error sending message", err)
-
 }
 func ready(session *discordgo.Session, event *discordgo.Ready) {
 	session.UpdateGameStatus(0, "Google Classroom…")
 	session.UpdateListeningStatus("Listening to \"!classroom\" ")
 }
-func load_token() (string, string, error) {
+func load_token() (string, string) {
 	// load environment variables from .env
 	err := godotenv.Load()
-
 	if err != nil {
-		log.Fatal("error loading .env file")
-		return "", "", err
+		log.Panicf("error loading .env file:%v", err)
+		return "", ""
 	}
 	Token := os.Getenv("DISCORD_TOKEN")
 	Class_id := os.Getenv("CLASS_ID")
 	if Token == "" || Class_id == "" {
-		return "", "", errors.New("token (or class id) not loaded")
+		log.Panicf("Token (or class id) not loaded. Make sure your .env file includes your Discord Token & Class_ID")
+		return "", ""
 	} else {
-		return Token, Class_id, nil
+		return Token, Class_id
 	}
 
-}
-func log_err(msg string, err error) {
-	if err != nil {
-		fmt.Println(msg)
-		log.Println(err)
-	}
 }
